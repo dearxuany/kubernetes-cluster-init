@@ -68,7 +68,7 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 
 
 
-### VM 虚拟机初始配置
+### VM 虚拟机初始配置(所有节点)
 #### 初始化详细配置
 见 [vmware 虚拟机初始配置及 k8s 适配调优](docs/vmware-host-init.md)
 
