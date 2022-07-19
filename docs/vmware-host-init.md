@@ -1,4 +1,5 @@
 # vmware 虚拟机初始配置
+## 虚拟机初始化
 设置 VM 虚拟机的 host IP 及外网访问，VMWare 为 NAT 模式
 https://www.cnblogs.com/bkyyay/p/12507184.html
 https://blog.csdn.net/eeeemon/article/details/109661426
@@ -99,7 +100,7 @@ yum makecache
 ```
 [root@localhost ~]# cat tools-init.sh 
 #! /bin/bash
-yum install -y wget telnet net-tools glances dig lrzsz
+yum install -y wget telnet net-tools glances bind-utils lrzsz lsof ipset ipvsadm vim
 ```
 设置主机名，SSH 重新登录生效
 ```
@@ -135,3 +136,75 @@ lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
 ```
+
+## 虚拟机 k8s 适配调优
+### 关闭防火墙和 selinux
+centos7 防火墙默认开启需关闭
+```
+[root@vm-centos7-64-k8s-master-01 ~]# systemctl status firewalld
+● firewalld.service - firewalld - dynamic firewall daemon
+   Loaded: loaded (/usr/lib/systemd/system/firewalld.service; enabled; vendor preset: enabled)
+   Active: active (running) since Tue 2022-07-19 01:40:04 EDT; 27min ago
+     Docs: man:firewalld(1)
+ Main PID: 7934 (firewalld)
+   CGroup: /system.slice/firewalld.service
+           └─7934 /usr/bin/python -Es /usr/sbin/firewalld --nofork --nopid
+
+Jul 19 01:40:02 vm-centos7-64-k8s-master-01 systemd[1]: Starting firewalld - dynamic firewall daemon...
+Jul 19 01:40:04 vm-centos7-64-k8s-master-01 systemd[1]: Started firewalld - dynamic firewall daemon.
+```
+永久关闭防火墙
+```
+#! /bin/bash
+
+# 关闭防火墙
+systemctl stop firewalld && systemctl disable firewalld
+sed -i '/^SELINUX=/c SELINUX=disabled' /etc/selinux/config
+setenforce 0
+
+systemctl status firewalld
+```
+
+### 关闭 SWAP 分区
+```
+#关闭swap
+swapoff -a
+sed -i 's/^.*centos-swap/#&/g' /etc/fstab
+```
+
+### 本地主机名解析
+虚拟机 /etc/hosts 设置主机解析 （有私网 dns 的话就不需要）
+```
+[root@vm-centos7-64-k8s-master-01 ~]# cat /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+[root@vm-centos7-64-k8s-master-01 ~]# ip route ls
+default via 192.168.126.2 dev ens33 proto static metric 100 
+192.168.126.0/24 dev ens33 proto kernel scope link src 192.168.126.137 metric 100 
+```
+修改 hosts
+```
+# 本地 hosts 解析非必要
+cat << EOF >> /etc/hosts
+192.168.126.137 vm-centos7-64-k8s-master-01
+192.168.126.138 vm-centos7-64-k8s-master-02
+192.168.126.139 vm-centos7-64-k8s-master-03
+192.168.126.140 vm-centos7-64-k8s-node-01
+192.168.126.141 vm-centos7-64-k8s-node-02
+EOF
+
+
+[root@vm-centos7-64-k8s-master-01 ~]# cat /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+192.168.126.137 vm-centos7-64-k8s-master-01
+192.168.126.138 vm-centos7-64-k8s-master-02 
+192.168.126.139 vm-centos7-64-k8s-master-03
+192.168.126.140 vm-centos7-64-k8s-node-01  
+192.168.126.141 vm-centos7-64-k8s-node-02
+
+[root@vm-centos7-64-k8s-master-01 ~]# ping vm-centos7-64-k8s-master-02
+PING vm-centos7-64-k8s-master-02 (192.168.126.138) 56(84) bytes of data.
+```
+
