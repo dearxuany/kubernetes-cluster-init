@@ -70,7 +70,7 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 
 组件版本
 
-| 组件            | 版本                     | 部署位置 | 部署方式    |   |
+| 组件            | 版本                     | 部署位置 | 部署方式     |   |
 |----------------|-------------------------|---------|------------|---|
 | kubernetes     |                         |         |            |   |
 | docker         | docker-ce-19.03.5-3.el7 | 全量     | systemd    |   |
@@ -325,3 +325,87 @@ Server:
  Live Restore Enabled: true
 
 ```
+
+#### 安装 kubeadm、kubelet 和 kubectl
+- kubeadm：用来初始化集群的指令
+- kubelet：在集群中的每个节点上用来启动 Pod 和容器等
+- kubectl：用来与集群通信的命令行工具
+
+
+kubeadm、kubelet 和 kubectl 版本需要和 kubernetes 版本兼容，此处组件均选择 1.23 对应版本
+
+https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#version-skew-policy
+
+https://kubernetes.io/zh-cn/releases/version-skew-policy/
+
+设置 kubernetes yum 源为阿里云
+```
+#! /bin/bash
+#由于官方源位于国外，这里配置centos7 kubernetes国内阿里源
+cat << EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64/
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+EOF
+```
+查看 yum 源版本，安装版本为 1.23.9 的 kubeadm、kubelet、kubectl
+```
+[root@vm-centos7-64-k8s-master-01 ~]# cat kubeadm-kubelet-kubectl-install.sh 
+#! /bin/bash
+
+# check versions
+yum list kubelet kubeadm kubectl  --showduplicates|sort -r|grep 1.23
+
+
+yum install -y kubelet-1.23.9 kubeadm-1.23.9 kubectl-1.23.9 --disableexcludes=kubernetes
+
+sleep 10
+
+# https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/#%E8%BF%81%E7%A7%BB%E5%88%B0-systemd-%E9%A9%B1%E5%8A%A8
+cat <<EOF >/etc/sysconfig/kubelet
+KUBELET_CGROUP_ARGS="--cgroup-driver=systemd"
+EOF
+sudo systemctl enable --now kubelet && systemctl start kubelet
+
+kubeadm version
+kubectl version --client
+kubelet --version
+
+```
+返回
+```
+Created symlink from /etc/systemd/system/multi-user.target.wants/kubelet.service to /usr/lib/systemd/system/kubelet.service.```
+```
+查看版本
+```
+# kubeadm version
+kubeadm version: &version.Info{Major:"1", Minor:"23", GitVersion:"v1.23.9", GitCommit:"c1de2d70269039fe55efb98e737d9a29f9155246", GitTreeState:"clean", BuildDate:"2022-07-13T14:25:37Z", GoVersion:"go1.17.11", Compiler:"gc", Platform:"linux/amd64"}
+
+# kubectl version --client
+Client Version: version.Info{Major:"1", Minor:"23", GitVersion:"v1.23.9", GitCommit:"c1de2d70269039fe55efb98e737d9a29f9155246", GitTreeState:"clean", BuildDate:"2022-07-13T14:26:51Z", GoVersion:"go1.17.11", Compiler:"gc", Platform:"linux/amd64"}
+
+# kubelet --version
+Kubernetes v1.23.9
+```
+其中 kubelet 没有启动成功
+```
+[root@vm-centos7-64-k8s-master-01 ~]# systemctl status kubelet
+● kubelet.service - kubelet: The Kubernetes Node Agent
+   Loaded: loaded (/usr/lib/systemd/system/kubelet.service; enabled; vendor preset: disabled)
+  Drop-In: /usr/lib/systemd/system/kubelet.service.d
+           └─10-kubeadm.conf
+   Active: activating (auto-restart) (Result: exit-code) since Wed 2022-07-20 15:51:09 CST; 7s ago
+     Docs: https://kubernetes.io/docs/
+  Process: 20042 ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS (code=exited, status=1/FAILURE)
+ Main PID: 20042 (code=exited, status=1/FAILURE)
+
+Jul 20 15:51:09 vm-centos7-64-k8s-master-01 systemd[1]: kubelet.service: main process exited, code=exited, status=1/FAILURE
+Jul 20 15:51:09 vm-centos7-64-k8s-master-01 systemd[1]: Unit kubelet.service entered failed state.
+Jul 20 15:51:09 vm-centos7-64-k8s-master-01 systemd[1]: kubelet.service failed.
+
+```
+
