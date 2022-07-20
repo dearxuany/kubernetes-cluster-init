@@ -439,6 +439,14 @@ ExecStart=
 ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
 
 ```
+docker CRI 的  "cgroup driver" 属性，需要和 kubelet 相同
+```
+[root@vm-centos7-64-k8s-master-01 ~]# docker info |grep Cgroup
+ Cgroup Driver: systemd
+
+```
+
+
 加载配置后重启 kubelet
 ```
 [root@vm-centos7-64-k8s-master-01 ~]# systemctl daemon-reload
@@ -461,4 +469,10 @@ Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: kubelet.service holdoff 
 Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: Stopped kubelet: The Kubernetes Node Agent.
 Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: Started kubelet: The Kubernetes Node Agent.
 
+```
+kubelet 可启动，但会频繁自动重启，原因在于 kubelet 在等待 kubeadm 指令
+```
+[root@vm-centos7-64-k8s-master-01 ~]# journalctl -xe -u kubelet
+
+err="failed to load Kubelet config file /var/lib/kubelet/config.yaml, error failed to read kubelet config file \"/var/lib/kubelet/config.yaml\", error: open /var/lib/kubelet/config.yaml: no such file or directory" path="/var/lib/kubelet/config.yaml"
 ```
