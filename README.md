@@ -150,7 +150,7 @@ chmod 755 /etc/sysconfig/modules/ipvs.modules
 bash /etc/sysconfig/modules/ipvs.modules
 lsmod | grep -e ip_vs -e nf_conntrack_ipv4
 ```
-启用确认
+ipvs 启用确认
 ```
 [root@vm-centos7-64-k8s-master-01 ~]# lsmod | grep -e ip_vs -e nf_conntrack_ipv4
 nf_conntrack_ipv4      15053  0 

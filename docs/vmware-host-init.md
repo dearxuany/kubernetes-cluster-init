@@ -1,5 +1,6 @@
 # vmware 虚拟机初始配置
 ## 虚拟机初始化
+### 网络通信
 设置 VM 虚拟机的 host IP 及外网访问，VMWare 为 NAT 模式
 https://www.cnblogs.com/bkyyay/p/12507184.html
 https://blog.csdn.net/eeeemon/article/details/109661426
@@ -86,6 +87,7 @@ PING www.a.shifen.com (14.215.177.38) 56(84) bytes of data.
 rtt min/avg/max/mdev = 2.784/3.421/4.315/0.650 ms
 
 ```
+### yum 源变更
 设置 yum 源为阿里云
 https://developer.aliyun.com/mirror/centos?spm=a2c6h.13651102.0.0.3e221b11iHFqLD
 ```
@@ -102,6 +104,7 @@ yum makecache
 #! /bin/bash
 yum install -y wget telnet net-tools glances bind-utils lrzsz lsof ipset ipvsadm vim
 ```
+### 主机名设置
 设置主机名，SSH 重新登录生效
 ```
 # 方法1
@@ -136,6 +139,144 @@ lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
 ```
+### 时间同步
+ntpdate和chrony是服务器时间同步的主要工具，两者的主要区别：
+- 执行ntpdate 后，时间是立即修整，中间会出现时间断档；
+- 而执行chrony后，时间也会修正，但是是缓慢将时间追回，并不会断档。
+
+使用chronyd服务平滑同步时间的方式要优于crontab + ntpdate，因为ntpdate同步时间会造成时间的跳跃，对一些依赖时间的程序和服务会造成影响，例如：sleep、timer等，且chronyd服务可以在修正时间的过程中同时修正CPU tick。
+
+#### chrony
+可使用 chrony，CentOS7系统默认已经安装</br>
+
+https://chegva.com/3265.html</br>
+
+https://help.aliyun.com/document_detail/187016.html </br>
+
+```
+[root@vm-centos7-64-k8s-master-01 ~]# systemctl status chronyd.service
+● chronyd.service - NTP client/server
+   Loaded: loaded (/usr/lib/systemd/system/chronyd.service; enabled; vendor preset: enabled)
+   Active: active (running) since Tue 2022-07-19 21:31:34 EDT; 46min ago
+     Docs: man:chronyd(8)
+           man:chrony.conf(5)
+  Process: 7954 ExecStartPost=/usr/libexec/chrony-helper update-daemon (code=exited, status=0/SUCCESS)
+  Process: 7940 ExecStart=/usr/sbin/chronyd $OPTIONS (code=exited, status=0/SUCCESS)
+ Main PID: 7948 (chronyd)
+   CGroup: /system.slice/chronyd.service
+           └─7948 /usr/sbin/chronyd
+
+Jul 19 21:31:34 vm-centos7-64-k8s-master-01 systemd[1]: Starting NTP client/server...
+Jul 19 21:31:34 vm-centos7-64-k8s-master-01 chronyd[7948]: chronyd version 3.2 starting (+CMDMON +NTP +REFCLOCK +RTC +PRIVDROP +SCFILTER +SECHASH +SIGND +ASYNCDNS +IPV6 +DEBUG)
+Jul 19 21:31:34 vm-centos7-64-k8s-master-01 chronyd[7948]: Frequency -4.728 +/- 0.638 ppm read from /var/lib/chrony/drift
+Jul 19 21:31:34 vm-centos7-64-k8s-master-01 systemd[1]: Started NTP client/server.
+Jul 19 21:31:43 vm-centos7-64-k8s-master-01 chronyd[7948]: Selected source 144.76.76.107
+Jul 19 21:31:47 vm-centos7-64-k8s-master-01 chronyd[7948]: Selected source 139.199.214.202
+Jul 19 21:34:01 vm-centos7-64-k8s-master-01 chronyd[7948]: Source 193.182.111.142 replaced with 162.159.200.123
+
+
+# 时区不对
+[root@vm-centos7-64-k8s-master-01 ~]# date
+Tue Jul 19 22:19:25 EDT 2022
+
+```
+使用 chrony 作为时间同步 client，时间同步源设置为阿里源，设置时区为上海</br>
+https://developer.aliyun.com/article/831625
+https://help.aliyun.com/document_detail/92704.html
+```
+#! /bin/bash
+
+yum -y install chrony
+
+systemctl enable chronyd
+systemctl start chronyd
+
+mv /etc/localtime /tmp/localtime.bak
+ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+hwclock -w
+timedatectl status
+
+chronyc tracking
+chronyc -n sources -v
+
+
+# add aliyun ntp server
+cp -a /etc/chrony.conf /tmp/chrony.conf.bak
+
+sed -i '/server\ 3\.centos\.pool\.ntp\.org\ iburst/aserver ntp.aliyun.com minpoll 4 maxpoll 10 iburst'  /etc/chrony.conf
+cat /etc/chrony.conf
+
+
+systemctl restart chronyd.service
+chronyc -n sources -v
+```
+查询结果
+```
+[root@vm-centos7-64-k8s-master-01 ~]# chronyc -n sources -v
+210 Number of sources = 5
+
+  .-- Source mode  '^' = server, '=' = peer, '#' = local clock.
+ / .- Source state '*' = current synced, '+' = combined , '-' = not combined,
+| /   '?' = unreachable, 'x' = time may be in error, '~' = time too variable.
+||                                                 .- xxxx [ yyyy ] +/- zzzz
+||      Reachability register (octal) -.           |  xxxx = adjusted offset,
+||      Log2(Polling interval) --.      |          |  yyyy = measured offset,
+||                                \     |          |  zzzz = estimated error.
+||                                 |    |           \
+MS Name/IP address         Stratum Poll Reach LastRx Last sample               
+===============================================================================
+^? 94.237.64.20                  2   6     1     1    +93ms[  +93ms] +/-  118ms
+^? 94.130.49.186                 3   6     1     0  -1826us[-1826us] +/-  112ms
+^? 119.28.183.184                2   6     1     0   -478us[ -478us] +/-   13ms
+^? 162.159.200.123               3   6     1     0  +2856us[+2856us] +/-  111ms
+^? 203.107.6.88                  2   4     1     1  +1316us[+1316us] +/-   27ms
+
+[root@vm-centos7-64-k8s-master-01 ~]# cat cat /etc/chrony.conf
+cat: cat: No such file or directory
+# Use public servers from the pool.ntp.org project.
+# Please consider joining the pool (http://www.pool.ntp.org/join.html).
+server 0.centos.pool.ntp.org iburst
+server 1.centos.pool.ntp.org iburst
+server 2.centos.pool.ntp.org iburst
+server 3.centos.pool.ntp.org iburst
+server ntp.aliyun.com minpoll 4 maxpoll 10 iburst
+
+# Record the rate at which the system clock gains/losses time.
+driftfile /var/lib/chrony/drift
+
+# Allow the system clock to be stepped in the first three updates
+# if its offset is larger than 1 second.
+makestep 1.0 3
+
+# Enable kernel synchronization of the real-time clock (RTC).
+rtcsync
+
+# Enable hardware timestamping on all interfaces that support it.
+#hwtimestamp *
+
+# Increase the minimum number of selectable sources required to adjust
+# the system clock.
+#minsources 2
+
+# Allow NTP client access from local network.
+#allow 192.168.0.0/16
+
+# Serve time even if not synchronized to a time source.
+#local stratum 10
+
+# Specify file containing keys for NTP authentication.
+#keyfile /etc/chrony.keys
+
+# Specify directory for log files.
+logdir /var/log/chrony
+
+# Select which information is logged.
+#log measurements statistics tracking
+
+```
+
+
 
 ## 虚拟机 k8s 适配调优
 ### 关闭防火墙和 selinux
