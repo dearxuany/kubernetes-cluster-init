@@ -365,10 +365,6 @@ yum install -y kubelet-1.23.9 kubeadm-1.23.9 kubectl-1.23.9 --disableexcludes=ku
 
 sleep 10
 
-# https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/#%E8%BF%81%E7%A7%BB%E5%88%B0-systemd-%E9%A9%B1%E5%8A%A8
-cat <<EOF >/etc/sysconfig/kubelet
-KUBELET_CGROUP_ARGS="--cgroup-driver=systemd"
-EOF
 sudo systemctl enable --now kubelet && systemctl start kubelet
 
 kubeadm version
@@ -408,4 +404,61 @@ Jul 20 15:51:09 vm-centos7-64-k8s-master-01 systemd[1]: Unit kubelet.service ent
 Jul 20 15:51:09 vm-centos7-64-k8s-master-01 systemd[1]: kubelet.service failed.
 
 ```
+需要确保容器运行时和 kubelet 所使用的是相同的 cgroup 驱动，否则 kubelet 进程会失败
+```
+[root@vm-centos7-64-k8s-master-01 ~]# cat /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+# Note: This dropin only works with kubeadm and kubelet v1.11+
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+# This is a file that "kubeadm init" and "kubeadm join" generates at runtime, populating the KUBELET_KUBEADM_ARGS variable dynamically
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+# This is a file that the user can use for overrides of the kubelet args as a last resort. Preferably, the user should use
+# the .NodeRegistration.KubeletExtraArgs object in the configuration files instead. KUBELET_EXTRA_ARGS should be sourced from this file.
+EnvironmentFile=-/etc/sysconfig/kubelet
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
 
+```
+kubelet 启动文件添加 KUBELET_CGROUP_ARGS 配置
+
+https://kubernetes.io/zh-cn/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/#%E8%BF%81%E7%A7%BB%E5%88%B0-systemd-%E9%A9%B1%E5%8A%A8
+
+```
+[root@vm-centos7-64-k8s-master-01 ~]# vim /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+Environment="KUBELET_CGROUP_ARGS=--system-reserved=memory=300Mi --kube-reserved=memory=400Mi --eviction-hard=imagefs.available<15%,memory.available<300Mi,nodefs.available<10%,nodefs.inodesFree<5% --cgroup-driver=systemd"
+# This is a file that "kubeadm init" and "kubeadm join" generates at runtime, populating the KUBELET_KUBEADM_ARGS variable dynamically
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+# This is a file that the user can use for overrides of the kubelet args as a last resort. Preferably, the user should use
+# the .NodeRegistration.KubeletExtraArgs object in the configuration files instead. KUBELET_EXTRA_ARGS should be sourced from this file.
+EnvironmentFile=-/etc/sysconfig/kubelet
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
+
+```
+加载配置后重启 kubelet
+```
+[root@vm-centos7-64-k8s-master-01 ~]# systemctl daemon-reload
+[root@vm-centos7-64-k8s-master-01 ~]# systemctl stop kubelet
+[root@vm-centos7-64-k8s-master-01 ~]# systemctl start kubelet
+[root@vm-centos7-64-k8s-master-01 ~]# systemctl status kubelet
+● kubelet.service - kubelet: The Kubernetes Node Agent
+   Loaded: loaded (/usr/lib/systemd/system/kubelet.service; enabled; vendor preset: disabled)
+  Drop-In: /usr/lib/systemd/system/kubelet.service.d
+           └─10-kubeadm.conf
+   Active: active (running) since Wed 2022-07-20 16:11:49 CST; 2ms ago
+     Docs: https://kubernetes.io/docs/
+ Main PID: 20858 (kubelet)
+    Tasks: 1
+   Memory: 120.0K
+   CGroup: /system.slice/kubelet.service
+           └─20858 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml
+
+Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: kubelet.service holdoff time over, scheduling restart.
+Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: Stopped kubelet: The Kubernetes Node Agent.
+Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: Started kubelet: The Kubernetes Node Agent.
+
+```
