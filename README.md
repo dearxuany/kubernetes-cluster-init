@@ -5,7 +5,7 @@
   - minikube
   - kind
 - 集群
-  - kubeadmin
+  - kubeadm
   - rancher rke
   - 云平台 ACK 托管集群
 
