@@ -55,7 +55,7 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
   - nas
 
 
-## kubeadmin 部署 k8s 集群
+## kubeadm 部署 k8s 集群
 https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
 
 虚拟机配置
@@ -477,6 +477,6 @@ err="failed to load Kubelet config file /var/lib/kubelet/config.yaml, error fail
 ```
 
 
-### kubeadmin 初始化 k8s cluster
+### kubeadm 初始化 k8s cluster
 https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
 
