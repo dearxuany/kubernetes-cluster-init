@@ -70,16 +70,16 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 
 组件版本
 
-| 组件            | 版本                     | 部署位置 | 部署方式     |   |
-|----------------|-------------------------|---------|------------|---|
-| kubernetes     |                         |         |            |   |
-| docker         | docker-ce-19.03.5-3.el7 | 全量     | systemd    |   |
-| kubeadm        |                         |         |            |   |
-| kubelet        |                         |         |            |   |
-| kube-proxy     |                         |         |            |   |
-| kubectl        |                         | client  | yum        |   |
-|                |                         |         |            |   |
-|                |                         |         |            |   |
+| 组件            | 版本                     | 部署位置 | 部署/管理方式  |   |
+|----------------|-------------------------|---------|--------------|---|
+| kubernetes     | 1.23.9                  |         |              |   |
+| docker         | docker-ce-19.03.5-3.el7 | 全量VM   | systemd      |   |
+| kubeadm        | 1.23.9                  | 全量VM   | yum          |   |
+| kubelet        | 1.23.9                  | 全量VM   | systemd      |   |
+| kubectl        | 1.23.9                  | client  | yum          |   |
+| kube-proxy     |                         |         |              |   |
+|                |                         |         |              |   |
+|                |                         |         |              |   |
 
 
 
@@ -446,7 +446,6 @@ docker CRI 的  "cgroup driver" 属性，需要和 kubelet 相同
 
 ```
 
-
 加载配置后重启 kubelet
 ```
 [root@vm-centos7-64-k8s-master-01 ~]# systemctl daemon-reload
@@ -470,9 +469,14 @@ Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: Stopped kubelet: The Kub
 Jul 20 16:11:49 vm-centos7-64-k8s-master-01 systemd[1]: Started kubelet: The Kubernetes Node Agent.
 
 ```
-kubelet 可启动，但会频繁自动重启，原因在于 kubelet 在等待 kubeadm 指令
+kubelet 可启动，但会频繁自动重启，原因在于 kubelet 在等待 kubeadm 指令。升级时，kubelet 每隔几秒钟重新启动一次， 在 crashloop 状态中等待 kubeadm 发布指令。crashloop 状态是正常现象。 初始化控制平面后，kubelet 将正常运行。
 ```
 [root@vm-centos7-64-k8s-master-01 ~]# journalctl -xe -u kubelet
 
 err="failed to load Kubelet config file /var/lib/kubelet/config.yaml, error failed to read kubelet config file \"/var/lib/kubelet/config.yaml\", error: open /var/lib/kubelet/config.yaml: no such file or directory" path="/var/lib/kubelet/config.yaml"
 ```
+
+
+### kubeadmin 初始化 k8s cluster
+https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+
