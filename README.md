@@ -70,11 +70,16 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 
 组件版本
 
-| 组件    | 版本                     | 部署位置 | 部署方式    |   |
-|--------|-------------------------|---------|------------|---|
-| docker | docker-ce-19.03.5-3.el7 | 全量     | systemd    |   |
-|        |                         |         |            |   |
-|        |                         |         |            |   |
+| 组件            | 版本                     | 部署位置 | 部署方式    |   |
+|----------------|-------------------------|---------|------------|---|
+| kubernetes     |                         |         |            |   |
+| docker         | docker-ce-19.03.5-3.el7 | 全量     | systemd    |   |
+| kubeadm        |                         |         |            |   |
+| kubelet        |                         |         |            |   |
+| kube-proxy     |                         |         |            |   |
+| kubectl        |                         | client  | yum        |   |
+|                |                         |         |            |   |
+|                |                         |         |            |   |
 
 
 
