@@ -153,6 +153,8 @@ https://chegva.com/3265.html</br>
 
 https://help.aliyun.com/document_detail/187016.html </br>
 
+https://chrony.tuxfamily.org/index.html?spm=a2c4g.11186623.0.0.35ca3b13ndMMhp
+
 ```
 [root@vm-centos7-64-k8s-master-01 ~]# systemctl status chronyd.service
 ● chronyd.service - NTP client/server

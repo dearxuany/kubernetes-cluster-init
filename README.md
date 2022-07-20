@@ -41,7 +41,7 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
 - log-controller
 
 
-### 插件
+### 接口
 - CRI
   - docker (k8s 1.24 后不支持)
 - CNI
@@ -58,6 +58,8 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
 ## kubeadmin 部署 k8s 集群
 https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
 
+虚拟机配置
+
 | host                      | ip              | cpu | ram | dish |   system   |   |   |
 |---------------------------|-----------------|-----|-----|------|------------|---|---|
 |vm-centos7-64-k8s-master-01| 192.168.126.137 | 4   | 4GB | 20GB | centos7 64 |   |   |
@@ -65,6 +67,15 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 |vm-centos7-64-k8s-master-03| 192.168.126.139 |     |     |      | centos7 64 |   |   |
 |vm-centos7-64-k8s-node-01  | 192.168.126.140 |     |     |      |            |   |   |
 |vm-centos7-64-k8s-node-02  | 192.168.126.141 |     |     |      |            |   |   |
+
+组件版本
+
+| 组件    | 版本                     | 部署位置 | 部署方式    |   |
+|--------|-------------------------|---------|------------|---|
+| docker | docker-ce-19.03.5-3.el7 | 全量     | systemd    |   |
+|        |                         |         |            |   |
+|        |                         |         |            |   |
+
 
 
 
@@ -163,5 +174,149 @@ nf_conntrack          133095  2 ip_vs,nf_conntrack_ipv4
 libcrc32c              12644  3 xfs,ip_vs,nf_conntrack
 ```
 
+#### 容器运行时组件 docker
+Docker Engine 没有实现 CRI，而这是容器运行时在 Kubernetes 中工作所需要的。 为此，必须安装一个额外的服务 cri-dockerd。 cri-dockerd 是一个基于传统的内置Docker引擎支持的项目，它在 1.24 版本从 kubelet 中移除。
 
+https://kubernetes.io/zh-cn/docs/setup/production-environment/container-runtimes/
 
+此处使用 k8s 版本为 kubernetes 1.23 故可以继续使用 Docker Engine 来作为容器运行时组件。
+
+```
+[root@vm-centos7-64-k8s-master-01 ~]# cat docker-install.sh 
+#!/usr/bin/env bash
+# https://docs.docker.com/engine/install/centos/
+# https://help.aliyun.com/document_detail/51853.html
+
+docker_daemon_json_enable="True"
+docker_daemon_json_tpl="./docker-daemon.json"
+
+sudo yum remove docker \
+                  docker-client \
+                  docker-client-latest \
+                  docker-common \
+                  docker-latest \
+                  docker-latest-logrotate \
+                  docker-logrotate \
+                  docker-engine
+
+sudo yum install -y yum-utils \
+  device-mapper-persistent-data \
+  lvm2
+
+sudo wget -O /etc/yum.repos.d/docker-ce.repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+sudo yum list docker-ce --showduplicates|grep 19.03.5
+
+sudo yum install -y docker-ce-19.03.5-3.el7 docker-ce-cli containerd.io
+
+if [ $docker_daemon_json_enable = "True" ];then
+  if [ ! -d /etc/docker ]; then
+    sudo mkdir -p /etc/docker
+  fi
+  if [ -f "/etc/docker/daemon.json" ]; then
+    mv /etc/docker/daemon.json /tmp/docker-daemon.json.bak.$(date "+%Y%m%d%H%M%S")
+  fi
+  sudo mv $docker_daemon_json_tpl /etc/docker/daemon.json
+fi
+
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo systemctl status docker
+
+sudo docker info
+
+```
+docker daemon.json 文件
+```
+[root@vm-centos7-64-k8s-master-01 tmp]# cat  /etc/docker/daemon.json
+{
+    "exec-opts": ["native.cgroupdriver=systemd"],
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "100m",
+        "max-file": "10"
+    },
+    "bip": "169.254.123.1/24",     # docker 容器使用网段，不能和内网网段冲突
+    "oom-score-adjust": -1000,
+    "registry-mirrors": ["https://pqbap4ya.mirror.aliyuncs.com"],
+    "storage-driver": "overlay2",
+    "storage-opts":["overlay2.override_kernel_check=true"],
+    "live-restore": true
+}
+```
+以上 docker daemon.json 文件 使用默认 /var/lib/docker 目录作为容器的存储与运行目录，修改需变更 Docker Root Dir
+参数
+```
+{
+    "exec-opts": ["native.cgroupdriver=systemd"],
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "100m",
+        "max-file": "10"
+    },
+    "bip": "169.254.123.1/24",
+    "oom-score-adjust": -1000,
+    "registry-mirrors": ["https://pqbap4ya.mirror.aliyuncs.com"],
+    "storage-driver": "overlay2",
+    "storage-opts":["overlay2.override_kernel_check=true"],
+    "data-root":"/sdata/docker",
+    "live-restore": true
+}
+```
+docker info
+```
+[root@vm-centos7-64-k8s-master-01 ~]# docker info
+Client:
+ Context:    default
+ Debug Mode: false
+ Plugins:
+  app: Docker App (Docker Inc., v0.9.1-beta3)
+  buildx: Docker Buildx (Docker Inc., v0.8.2-docker)
+  scan: Docker Scan (Docker Inc., v0.17.0)
+
+Server:
+ Containers: 0
+  Running: 0
+  Paused: 0
+  Stopped: 0
+ Images: 0
+ Server Version: 19.03.5
+ Storage Driver: overlay2
+  Backing Filesystem: xfs
+  Supports d_type: true
+  Native Overlay Diff: true
+ Logging Driver: json-file
+ Cgroup Driver: systemd
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local logentries splunk syslog
+ Swarm: inactive
+ Runtimes: runc
+ Default Runtime: runc
+ Init Binary: docker-init
+ containerd version: 10c12954828e7c7c9b6e0ea9b0c02b01407d3ae1
+ runc version: v1.1.2-0-ga916309
+ init version: fec3683
+ Security Options:
+  seccomp
+   Profile: default
+ Kernel Version: 3.10.0-957.el7.x86_64
+ Operating System: CentOS Linux 7 (Core)
+ OSType: linux
+ Architecture: x86_64
+ CPUs: 2
+ Total Memory: 3.692GiB
+ Name: vm-centos7-64-k8s-master-01
+ ID: FWZS:TTKC:OQNX:IDSC:2RIJ:TQHA:UEYL:TYPV:M5TE:JHWA:6B4F:XOSP
+ Docker Root Dir: /var/lib/docker
+ Debug Mode: false
+ Registry: https://index.docker.io/v1/
+ Labels:
+ Experimental: false
+ Insecure Registries:
+  127.0.0.0/8
+ Registry Mirrors:
+  https://pqbap4ya.mirror.aliyuncs.com/
+ Live Restore Enabled: true
+
+```
