@@ -62,7 +62,7 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 
 | host                      | ip              | cpu | ram | dish |   system   |   |   |
 |---------------------------|-----------------|-----|-----|------|------------|---|---|
-|vm-centos7-64-k8s-master-01| 192.168.126.137 | 4   | 4GB | 20GB | centos7 64 |   |   |
+|vm-centos7-64-k8s-master-01| 192.168.126.137 | 2   | 4GB | 20GB | centos7 64 |   |   |
 |vm-centos7-64-k8s-master-02| 192.168.126.138 |     |     |      | centos7 64 |   |   |
 |vm-centos7-64-k8s-master-03| 192.168.126.139 |     |     |      | centos7 64 |   |   |
 |vm-centos7-64-k8s-worker-01| 192.168.126.140 |     |     |      |            |   |   |
@@ -480,3 +480,194 @@ err="failed to load Kubelet config file /var/lib/kubelet/config.yaml, error fail
 ### kubeadm 初始化 k8s cluster
 https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
 
+#### 单个 control-plane node 集群
+kubeadm 初始化集群
+https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/#pod-network
+
+kubeadm 使用及参数解析
+https://kubernetes.io/zh-cn/docs/reference/setup-tools/kubeadm/kubeadm-init/
+
+kubeadm 可使用命令或者配置文件形式注入参数初始化启动 k8s 节点，此处先使用命令
+````
+kubeadm init \
+--apiserver-advertise-address=192.168.126.137 \
+--apiserver-bind-port 6443 \
+--image-repository registry.aliyuncs.com/google_containers \
+--kubernetes-version=v1.23.9 \
+--service-cidr=10.96.0.0/12 \
+--pod-network-cidr=10.244.0.0/16 \
+--token-ttl=0
+````
+参数解析
+```
+--apiserver-advertise-address
+  apiserver 通告给其他组件的IP地址，一般应该为Master节点的用于集群内部通信的IP地址
+--apiserver-bind-port 
+  API 服务器绑定的端口，默认 6443，master 间需保证该端口能相互访问
+--image-repository 
+  拉取镜像的镜像仓库，默认是k8s.gcr.io
+--kubernetes-version
+  指定kubernetes版本，默认是 stable-1
+--service-cidr
+  k8s service ClusterIP 分配的 VIP 网段，需和 CNI 插件配置一致，默认为 10.96.0.0/12
+--pod-network-cidr
+  k8s pod 分配的独立 IP 使用网段，需和 CNI 插件配置一致
+  通常，Flannel网络插件的默认为10.244.0.0/16，Calico插件的默认值为192.168.0.0/16
+--token-ttl
+  默认token的有效期为24小时，如果不想过期，可以加上--token-ttl=0
+```
+
+其中，k8s 节点初始化的网络规划需要提前预估容量，多个因素会相互影响限制集群可支持的节点数与 pod 容量：
+
+- 节点网卡支持 IP 数量，对于阿里云来说，每个 ECS 对应网卡支持的 IP 数量是有限制的，故限制了每个节点可支持的 pod 数量
+- 节点磁盘容量和介质，主要是镜像存储大小和位置，涉及 docker 的 /var/lib/docker，如果分配太少的话会成为瓶颈
+- k8s 集群网段规划必须在集群建立时就做好，集群建立后若网段 IP 不足则无法扩容，必须重新新建集群
+- 
+
+
+kubeadm 执行结果
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubeadm init \
+> --apiserver-advertise-address=192.168.126.137 \
+> --apiserver-bind-port 6443 \
+> --image-repository registry.aliyuncs.com/google_containers \
+> --kubernetes-version=v1.23.9 \
+> --service-cidr=10.96.0.0/12 \
+> --pod-network-cidr=10.244.0.0/16 \
+> --token-ttl=0
+[init] Using Kubernetes version: v1.23.9
+[preflight] Running pre-flight checks
+[preflight] Pulling images required for setting up a Kubernetes cluster
+[preflight] This might take a minute or two, depending on the speed of your internet connection
+[preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+[certs] Using certificateDir folder "/etc/kubernetes/pki"
+[certs] Generating "ca" certificate and key
+[certs] Generating "apiserver" certificate and key
+[certs] apiserver serving cert is signed for DNS names [kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local vm-centos7-64-k8s-master-01] and IPs [10.96.0.1 192.168.126.137]
+[certs] Generating "apiserver-kubelet-client" certificate and key
+[certs] Generating "front-proxy-ca" certificate and key
+[certs] Generating "front-proxy-client" certificate and key
+[certs] Generating "etcd/ca" certificate and key
+[certs] Generating "etcd/server" certificate and key
+[certs] etcd/server serving cert is signed for DNS names [localhost vm-centos7-64-k8s-master-01] and IPs [192.168.126.137 127.0.0.1 ::1]
+[certs] Generating "etcd/peer" certificate and key
+[certs] etcd/peer serving cert is signed for DNS names [localhost vm-centos7-64-k8s-master-01] and IPs [192.168.126.137 127.0.0.1 ::1]
+[certs] Generating "etcd/healthcheck-client" certificate and key
+[certs] Generating "apiserver-etcd-client" certificate and key
+[certs] Generating "sa" key and public key
+[kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+[kubeconfig] Writing "admin.conf" kubeconfig file
+[kubeconfig] Writing "kubelet.conf" kubeconfig file
+[kubeconfig] Writing "controller-manager.conf" kubeconfig file
+[kubeconfig] Writing "scheduler.conf" kubeconfig file
+[kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet-start] Starting the kubelet
+[control-plane] Using manifest folder "/etc/kubernetes/manifests"
+[control-plane] Creating static Pod manifest for "kube-apiserver"
+[control-plane] Creating static Pod manifest for "kube-controller-manager"
+[control-plane] Creating static Pod manifest for "kube-scheduler"
+[etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
+[wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
+[apiclient] All control plane components are healthy after 13.003710 seconds
+[upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+[kubelet] Creating a ConfigMap "kubelet-config-1.23" in namespace kube-system with the configuration for the kubelets in the cluster
+NOTE: The "kubelet-config-1.23" naming of the kubelet ConfigMap is deprecated. Once the UnversionedKubeletConfigMap feature gate graduates to Beta the default name will become just "kubelet-config". Kubeadm upgrade will handle this transition transparently.
+[upload-certs] Skipping phase. Please see --upload-certs
+[mark-control-plane] Marking the node vm-centos7-64-k8s-master-01 as control-plane by adding the labels: [node-role.kubernetes.io/master(deprecated) node-role.kubernetes.io/control-plane node.kubernetes.io/exclude-from-external-load-balancers]
+[mark-control-plane] Marking the node vm-centos7-64-k8s-master-01 as control-plane by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+[bootstrap-token] Using token: mm82pb.stvxhld7s8o49nuu
+[bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
+[bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to get nodes
+[bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+[bootstrap-token] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+[bootstrap-token] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+[bootstrap-token] Creating the "cluster-info" ConfigMap in the "kube-public" namespace
+[kubelet-finalize] Updating "/etc/kubernetes/kubelet.conf" to point to a rotatable kubelet client certificate and key
+[addons] Applied essential addon: CoreDNS
+[addons] Applied essential addon: kube-proxy
+
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Alternatively, if you are the root user, you can run:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 192.168.126.137:6443 --token mm82pb.stvxhld7s8o49nuu \
+	--discovery-token-ca-cert-hash sha256:8075d0258bbd9eb3f19fa04fdaafe29f9ee0970464b6220bd3afbcb48b222735 
+
+```
+kubectl 的 kubeconfig 默认生成在 /etc/kubernetes/admin.conf 中，可以搬到其他位置
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get namespaces --kubeconfig /etc/kubernetes/admin.conf
+NAME              STATUS   AGE
+default           Active   6m16s
+kube-node-lease   Active   6m18s
+kube-public       Active   6m18s
+kube-system       Active   6m18s
+
+
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get all -A --kubeconfig /etc/kubernetes/admin.conf
+NAMESPACE     NAME                                                      READY   STATUS    RESTARTS   AGE
+kube-system   pod/coredns-6d8c4cb4d-mmlqb                               0/1     Pending   0          8m40s
+kube-system   pod/coredns-6d8c4cb4d-r6g6z                               0/1     Pending   0          8m41s
+kube-system   pod/etcd-vm-centos7-64-k8s-master-01                      1/1     Running   0          8m55s
+kube-system   pod/kube-apiserver-vm-centos7-64-k8s-master-01            1/1     Running   0          8m55s
+kube-system   pod/kube-controller-manager-vm-centos7-64-k8s-master-01   1/1     Running   0          8m55s
+kube-system   pod/kube-proxy-fnv9z                                      1/1     Running   0          8m41s
+kube-system   pod/kube-scheduler-vm-centos7-64-k8s-master-01            1/1     Running   0          8m55s
+
+NAMESPACE     NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP                  8m57s
+kube-system   service/kube-dns     ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   8m56s
+
+NAMESPACE     NAME                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-system   daemonset.apps/kube-proxy   1         1         1       1            1           kubernetes.io/os=linux   8m56s
+
+NAMESPACE     NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+kube-system   deployment.apps/coredns   0/2     2            0           8m56s
+
+NAMESPACE     NAME                                DESIRED   CURRENT   READY   AGE
+kube-system   replicaset.apps/coredns-6d8c4cb4d   2         2         0       8m41s
+
+```
+master 节点的 kubelet 状态，kubeadm init 后可正常 running
+```
+[root@vm-centos7-64-k8s-master-01 docker]# systemctl status kubelet
+● kubelet.service - kubelet: The Kubernetes Node Agent
+   Loaded: loaded (/usr/lib/systemd/system/kubelet.service; enabled; vendor preset: disabled)
+  Drop-In: /usr/lib/systemd/system/kubelet.service.d
+           └─10-kubeadm.conf
+   Active: active (running) since Thu 2022-07-21 15:50:40 CST; 9min ago
+     Docs: https://kubernetes.io/docs/
+ Main PID: 24571 (kubelet)
+    Tasks: 14
+   Memory: 44.3M
+   CGroup: /system.slice/kubelet.service
+           └─24571 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.y...
+
+Jul 21 16:00:05 vm-centos7-64-k8s-master-01 kubelet[24571]: E0721 16:00:05.995812   24571 kubelet.go:2391] "Container runtime network not ready" networkReady="Networ...tialized"
+Jul 21 16:00:06 vm-centos7-64-k8s-master-01 kubelet[24571]: I0721 16:00:06.404720   24571 cni.go:240] "Unable to update cni config" err="no networks found in /etc/cni/net.d"
+Jul 21 16:00:11 vm-centos7-64-k8s-master-01 kubelet[24571]: E0721 16:00:11.005869   24571 kubelet.go:2391] "Container runtime network not ready" networkReady="Networ...tialized"
+Jul 21 16:00:11 vm-centos7-64-k8s-master-01 kubelet[24571]: I0721 16:00:11.405634   24571 cni.go:240] "Unable to update cni config" err="no networks found in /etc/cni/net.d"
+Jul 21 16:00:16 vm-centos7-64-k8s-master-01 kubelet[24571]: E0721 16:00:16.072336   24571 kubelet.go:2391] "Container runtime network not ready" networkReady="Networ...tialized"
+Jul 21 16:00:16 vm-centos7-64-k8s-master-01 kubelet[24571]: I0721 16:00:16.405867   24571 cni.go:240] "Unable to update cni config" err="no networks found in /etc/cni/net.d"
+Jul 21 16:00:21 vm-centos7-64-k8s-master-01 kubelet[24571]: E0721 16:00:21.080114   24571 kubelet.go:2391] "Container runtime network not ready" networkReady="Networ...tialized"
+Jul 21 16:00:21 vm-centos7-64-k8s-master-01 kubelet[24571]: I0721 16:00:21.406295   24571 cni.go:240] "Unable to update cni config" err="no networks found in /etc/cni/net.d"
+Jul 21 16:00:26 vm-centos7-64-k8s-master-01 kubelet[24571]: E0721 16:00:26.088728   24571 kubelet.go:2391] "Container runtime network not ready" networkReady="Networ...tialized"
+Jul 21 16:00:26 vm-centos7-64-k8s-master-01 kubelet[24571]: I0721 16:00:26.407598   24571 cni.go:240] "Unable to update cni config" err="no networks found in /etc/cni/net.d"
+Hint: Some lines were ellipsized, use -l to show in full.
+
+```
