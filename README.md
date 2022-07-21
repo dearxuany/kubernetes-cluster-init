@@ -70,16 +70,16 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 
 组件版本
 
-| 组件            | 版本                     | 部署位置 | 部署/管理方式  |   |
-|----------------|-------------------------|---------|--------------|---|
-| kubernetes     | 1.23.9                  |         |              |   |
-| docker         | docker-ce-19.03.5-3.el7 | 全量VM   | systemd      |   |
-| kubeadm        | 1.23.9                  | 全量VM   | yum          |   |
-| kubelet        | 1.23.9                  | 全量VM   | systemd      |   |
-| kubectl        | 1.23.9                  | client  | yum          |   |
-| kube-proxy     |                         |         |              |   |
-|                |                         |         |              |   |
-|                |                         |         |              |   |
+| 组件            | 版本                     | 部署位置 | 部署/管理方式               |   |
+|----------------|-------------------------|---------|---------------------------|---|
+| kubernetes     | 1.23.9                  |         |  kubeadm                  |   |
+| docker         | docker-ce-19.03.5-3.el7 | 全量VM   | systemd                   |   |
+| kubeadm        | 1.23.9                  | 全量VM   | yum                       |   |
+| kubelet        | 1.23.9                  | 全量VM   | systemd                   |   |
+| kubectl        | 1.23.9                  | client  | yum                        |   |
+| kube-proxy     | 1.23.9                  | 全量节点  | kubeadm                   |   |
+| flannel        |                         |         | kubectl apply  daemonset  |   |
+|                |                         |         |                           |   |
 
 
 
