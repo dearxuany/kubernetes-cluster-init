@@ -1269,6 +1269,69 @@ status:
   updatedReplicas: 2
 
 ```
+添加第二个 worker 节点到集群时出现错误
+```
+[root@vm-centos7-64-k8s-worker-02 ~]# kubeadm join 192.168.126.137:6443 --token mm82pb.stvxhld7s8o49nuu \
+>  --discovery-token-ca-cert-hash sha256:8075d0258bbd9eb3f19fa04fdaafe29f9ee0970464b6220bd3afbcb48b222735
+[preflight] Running pre-flight checks
+	[WARNING Hostname]: hostname "vm-centos7-64-k8s-worker-02" could not be reached
+	[WARNING Hostname]: hostname "vm-centos7-64-k8s-worker-02": lookup vm-centos7-64-k8s-worker-02 on 8.8.8.8:53: no such host
+error execution phase preflight: [preflight] Some fatal errors occurred:
+	[ERROR FileContent--proc-sys-net-ipv4-ip_forward]: /proc/sys/net/ipv4/ip_forward contents are not set to 1
+[preflight] If you know what you are doing, you can make a check non-fatal with `--ignore-preflight-errors=...`
+To see the stack trace of this error execute with --v=5 or higher
 
+```
+由于基于同一个快照克隆所得，不太清楚为何 net.ipv4.ip_forward = 1 这行为何不见了，重新配置再添加节点进集群即可
+```
+[root@vm-centos7-64-k8s-worker-02 ~]# cat /etc/sysctl.d/k8s.conf 
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+
+[root@vm-centos7-64-k8s-worker-02 ~]# vi /etc/sysctl.d/k8s.conf 
+
+[root@vm-centos7-64-k8s-worker-02 ~]# cat /etc/sysctl.d/k8s.conf 
+net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+
+[root@vm-centos7-64-k8s-worker-02 ~]#  sudo sysctl --system
+* Applying /usr/lib/sysctl.d/00-system.conf ...
+net.bridge.bridge-nf-call-ip6tables = 0
+net.bridge.bridge-nf-call-iptables = 0
+net.bridge.bridge-nf-call-arptables = 0
+* Applying /usr/lib/sysctl.d/10-default-yama-scope.conf ...
+kernel.yama.ptrace_scope = 0
+* Applying /usr/lib/sysctl.d/50-default.conf ...
+kernel.sysrq = 16
+kernel.core_uses_pid = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.promote_secondaries = 1
+net.ipv4.conf.all.promote_secondaries = 1
+fs.protected_hardlinks = 1
+fs.protected_symlinks = 1
+* Applying /etc/sysctl.d/99-sysctl.conf ...
+* Applying /etc/sysctl.d/k8s.conf ...
+net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+* Applying /etc/sysctl.conf ...
+
+[root@vm-centos7-64-k8s-worker-02 ~]# cat /proc/sys/net/ipv4/ip_forward
+1
+
+```
+1 master 2 worker 集群状态
+```
+[root@vm-centos7-64-k8s-master-01 ~]#  kubectl get node --kubeconfig /etc/kubernetes/admin.conf
+NAME                          STATUS   ROLES                  AGE    VERSION
+vm-centos7-64-k8s-master-01   Ready    control-plane,master   164m   v1.23.9
+vm-centos7-64-k8s-worker-01   Ready    <none>                 82m    v1.23.9
+vm-centos7-64-k8s-worker-02   Ready    <none>                 104s   v1.23.9
+
+```
 
 
