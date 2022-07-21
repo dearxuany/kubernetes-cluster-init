@@ -77,9 +77,9 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 | kubeadm        | 1.23.9                  | 全量VM   | yum                       |   |
 | kubelet        | 1.23.9                  | 全量VM   | systemd                   |   |
 | kubectl        | 1.23.9                  | client  | yum                        |   |
-| kube-proxy     | 1.23.9                  | 全量节点  | kubeadm                   |   |
-| flannel        |                         |         | kubectl apply  daemonset  |   |
-|                |                         |         |                           |   |
+| kube-proxy     | 1.23.9                  | 全量节点  | kubeadm daemonset         |   |
+| flannel        |                         | 全量节点  | kubectl apply  daemonset  |   |
+| coredns        | 1.8.6                   | 全量节点  | kubeadm  deployment        |   |
 
 
 
@@ -855,6 +855,143 @@ NAME                          STATUS   ROLES                  AGE    VERSION
 vm-centos7-64-k8s-master-01   Ready    control-plane,master   84m    v1.23.9
 vm-centos7-64-k8s-worker-01   Ready    <none>                 118s   v1.23.9
 
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get node vm-centos7-64-k8s-master-01 -o yaml --kubeconfig /etc/kubernetes/admin.conf
+apiVersion: v1
+kind: Node
+metadata:
+  annotations:
+    flannel.alpha.coreos.com/backend-data: '{"VNI":1,"VtepMAC":"62:b3:53:e3:87:c5"}'
+    flannel.alpha.coreos.com/backend-type: vxlan
+    flannel.alpha.coreos.com/kube-subnet-manager: "true"
+    flannel.alpha.coreos.com/public-ip: 192.168.126.137
+    kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+    node.alpha.kubernetes.io/ttl: "0"
+    volumes.kubernetes.io/controller-managed-attach-detach: "true"
+  creationTimestamp: "2022-07-21T07:50:37Z"
+  labels:
+    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/os: linux
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: vm-centos7-64-k8s-master-01
+    kubernetes.io/os: linux
+    node-role.kubernetes.io/control-plane: ""
+    node-role.kubernetes.io/master: ""
+    node.kubernetes.io/exclude-from-external-load-balancers: ""
+  name: vm-centos7-64-k8s-master-01
+  resourceVersion: "8256"
+  uid: 2ca2b2e6-5922-4744-86de-c4afc63d3d6f
+spec:
+  podCIDR: 10.244.0.0/24
+  podCIDRs:
+  - 10.244.0.0/24
+  taints:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+status:
+  addresses:
+  - address: 192.168.126.137
+    type: InternalIP
+  - address: vm-centos7-64-k8s-master-01
+    type: Hostname
+  allocatable:
+    cpu: "2"
+    ephemeral-storage: "16415037823"
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 3768908Ki
+    pods: "110"
+  capacity:
+    cpu: "2"
+    ephemeral-storage: 17394Mi
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 3871308Ki
+    pods: "110"
+  conditions:
+  - lastHeartbeatTime: "2022-07-21T09:08:53Z"
+    lastTransitionTime: "2022-07-21T09:08:53Z"
+    message: Flannel is running on this node
+    reason: FlannelIsUp
+    status: "False"
+    type: NetworkUnavailable
+  - lastHeartbeatTime: "2022-07-21T09:34:53Z"
+    lastTransitionTime: "2022-07-21T07:50:35Z"
+    message: kubelet has sufficient memory available
+    reason: KubeletHasSufficientMemory
+    status: "False"
+    type: MemoryPressure
+  - lastHeartbeatTime: "2022-07-21T09:34:53Z"
+    lastTransitionTime: "2022-07-21T07:50:35Z"
+    message: kubelet has no disk pressure
+    reason: KubeletHasNoDiskPressure
+    status: "False"
+    type: DiskPressure
+  - lastHeartbeatTime: "2022-07-21T09:34:53Z"
+    lastTransitionTime: "2022-07-21T07:50:35Z"
+    message: kubelet has sufficient PID available
+    reason: KubeletHasSufficientPID
+    status: "False"
+    type: PIDPressure
+  - lastHeartbeatTime: "2022-07-21T09:34:53Z"
+    lastTransitionTime: "2022-07-21T09:08:58Z"
+    message: kubelet is posting ready status
+    reason: KubeletReady
+    status: "True"
+    type: Ready
+  daemonEndpoints:
+    kubeletEndpoint:
+      Port: 10250
+  images:
+  - names:
+    - registry.aliyuncs.com/google_containers/etcd@sha256:64b9ea357325d5db9f8a723dcf503b5a449177b17ac87d69481e126bb724c263
+    - registry.aliyuncs.com/google_containers/etcd:3.5.1-0
+    sizeBytes: 292558922
+  - names:
+    - registry.aliyuncs.com/google_containers/kube-apiserver@sha256:caeeea3d81f87be77e6bbec57f20a1e66f62beae9be8daee0a0438cc30b6d098
+    - registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.9
+    sizeBytes: 135170705
+  - names:
+    - registry.aliyuncs.com/google_containers/kube-controller-manager@sha256:b76ed995e75aa947836df5d9d7cd55e9cd6ea9a5965e9c330530a3b5f02e8aa5
+    - registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.9
+    sizeBytes: 124996518
+  - names:
+    - registry.aliyuncs.com/google_containers/kube-proxy@sha256:ec165529c811ffe51da4f85fcc76e83ddd8a70716bed464c1aae6d85f9b4915a
+    - registry.aliyuncs.com/google_containers/kube-proxy:v1.23.9
+    sizeBytes: 112315538
+  - names:
+    - rancher/mirrored-flannelcni-flannel@sha256:b55a3b4e3dc62c4a897a2b55f60beb324ad94ee05fc6974493408ebc48d9bd77
+    - rancher/mirrored-flannelcni-flannel:v0.19.0
+    sizeBytes: 62278921
+  - names:
+    - registry.aliyuncs.com/google_containers/kube-scheduler@sha256:73472cea77500bbbcc6307d59525868e21ea16bcb853a556cbf4bb7434d125f3
+    - registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.9
+    sizeBytes: 53500851
+  - names:
+    - registry.aliyuncs.com/google_containers/coredns@sha256:5b6ec0d6de9baaf3e92d0f66cd96a25b9edbce8716f5f15dcd1a616b3abd590e
+    - registry.aliyuncs.com/google_containers/coredns:v1.8.6
+    sizeBytes: 46829283
+  - names:
+    - rancher/mirrored-flannelcni-flannel-cni-plugin@sha256:28d3a6be9f450282bf42e4dad143d41da23e3d91f66f19c01ee7fd21fd17cb2b
+    - rancher/mirrored-flannelcni-flannel-cni-plugin:v1.1.0
+    sizeBytes: 8087907
+  - names:
+    - registry.aliyuncs.com/google_containers/pause@sha256:3d380ca8864549e74af4b29c10f9cb0956236dfb01c40ca076fb6c37253234db
+    - registry.aliyuncs.com/google_containers/pause:3.6
+    sizeBytes: 682696
+  nodeInfo:
+    architecture: amd64
+    bootID: b80fdf5b-77e4-459e-9ca3-57f2d4e3f2dd
+    containerRuntimeVersion: docker://19.3.5
+    kernelVersion: 3.10.0-957.el7.x86_64
+    kubeProxyVersion: v1.23.9
+    kubeletVersion: v1.23.9
+    machineID: 3de7ed13196a4b22b3de5f9a79a03ed4
+    operatingSystem: linux
+    osImage: CentOS Linux 7 (Core)
+    systemUUID: 564DA3AE-F2A0-6DF7-7E1B-797A033C279C
+
+
+
 
 [root@vm-centos7-64-k8s-master-01 docker]# kubectl get node vm-centos7-64-k8s-worker-01 -o yaml --kubeconfig /etc/kubernetes/admin.conf
 apiVersion: v1
@@ -966,7 +1103,172 @@ status:
     systemUUID: 564D8FED-753F-FB04-72C7-BB153DDEFAFF
 
 ```
+添加 worker 节点后 coredns pod 也启用正常
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get all -A --kubeconfig /etc/kubernetes/admin.conf
+NAMESPACE      NAME                                                      READY   STATUS    RESTARTS   AGE
+kube-flannel   pod/kube-flannel-ds-dmsr5                                 1/1     Running   0          16m
+kube-flannel   pod/kube-flannel-ds-nqt7k                                 1/1     Running   0          22m
+kube-system    pod/coredns-6d8c4cb4d-mmlqb                               1/1     Running   0          98m
+kube-system    pod/coredns-6d8c4cb4d-r6g6z                               1/1     Running   0          98m
+kube-system    pod/etcd-vm-centos7-64-k8s-master-01                      1/1     Running   0          99m
+kube-system    pod/kube-apiserver-vm-centos7-64-k8s-master-01            1/1     Running   0          99m
+kube-system    pod/kube-controller-manager-vm-centos7-64-k8s-master-01   1/1     Running   0          99m
+kube-system    pod/kube-proxy-fnv9z                                      1/1     Running   0          98m
+kube-system    pod/kube-proxy-l5kkg                                      1/1     Running   0          16m
+kube-system    pod/kube-scheduler-vm-centos7-64-k8s-master-01            1/1     Running   0          99m
 
+NAMESPACE     NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP                  99m
+kube-system   service/kube-dns     ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   99m
+
+NAMESPACE      NAME                             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-flannel   daemonset.apps/kube-flannel-ds   2         2         2       2            2           <none>                   22m
+kube-system    daemonset.apps/kube-proxy        2         2         2       2            2           kubernetes.io/os=linux   99m
+
+NAMESPACE     NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+kube-system   deployment.apps/coredns   2/2     2            2           99m
+
+NAMESPACE     NAME                                DESIRED   CURRENT   READY   AGE
+kube-system   replicaset.apps/coredns-6d8c4cb4d   2         2         2       98m
+
+```
+主要是因为 coredns 有调度亲和性策略，不能调度到带有 key 为 node-role.kubernetes.io/master 或者 node-role.kubernetes.io/control-plane 的 labels 的节点，故 coredns 只能被调度到 worker 节点。 
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get deployment coredns -o yaml -n kube-system --kubeconfig /etc/kubernetes/admin.conf
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  creationTimestamp: "2022-07-21T07:50:40Z"
+  generation: 1
+  labels:
+    k8s-app: kube-dns
+  name: coredns
+  namespace: kube-system
+  resourceVersion: "6206"
+  uid: 1dcbd423-dd76-408e-b0fa-0f8d1da5f288
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        k8s-app: kube-dns
+    spec:
+      containers:
+      - args:
+        - -conf
+        - /etc/coredns/Corefile
+        image: registry.aliyuncs.com/google_containers/coredns:v1.8.6
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: coredns
+        ports:
+        - containerPort: 53
+          name: dns
+          protocol: UDP
+        - containerPort: 53
+          name: dns-tcp
+          protocol: TCP
+        - containerPort: 9153
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /ready
+            port: 8181
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 170Mi
+          requests:
+            cpu: 100m
+            memory: 70Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/coredns
+          name: config-volume
+          readOnly: true
+      dnsPolicy: Default
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: coredns
+      serviceAccountName: coredns
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+      volumes:
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: Corefile
+            path: Corefile
+          name: coredns
+        name: config-volume
+status:
+  availableReplicas: 2
+  conditions:
+  - lastTransitionTime: "2022-07-21T09:09:01Z"
+    lastUpdateTime: "2022-07-21T09:09:01Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  - lastTransitionTime: "2022-07-21T09:09:01Z"
+    lastUpdateTime: "2022-07-21T09:09:01Z"
+    message: ReplicaSet "coredns-6d8c4cb4d" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  observedGeneration: 1
+  readyReplicas: 2
+  replicas: 2
+  updatedReplicas: 2
+
+```
 
 
 
