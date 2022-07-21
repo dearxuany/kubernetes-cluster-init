@@ -351,3 +351,120 @@ EOF
 PING vm-centos7-64-k8s-master-02 (192.168.126.138) 56(84) bytes of data.
 ```
 
+### 不同 VM 间的变更
+不同 VM 主机需要有独立的固定 IP 地址、主机名、mac 地址、设备 uuid，特别注意 network interface mac 地址和设备的 product_uuid
+https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#verify-mac-address
+
+#### ip 及 hostname 修改
+```
+# cat update-ip.sh 
+#!/bin/bash
+
+read -p "Please enter the ip address: " New_ip
+
+network_script_path="/etc/sysconfig/network-scripts/ifcfg-ens33"
+
+if [[ $New_ip =~ ([0-9]+\.?){3}([0-9]+)? ]]
+then
+   sed -ri "s/IPADDR.*/IPADDR=$New_ip/" $network_script_path
+   grep 'IPADDR' $network_script_path
+   systemctl restart network
+else
+echo "ip address error,please re-enter"
+fi
+
+
+
+# cat update-hostname.sh 
+#! /bin/bash
+
+hostnamectl set-hostname vm-centos7-64-k8s-worker-01
+hostname
+
+```
+#### network interface mac 地址修改
+网络接口地址查询，此处 vm 模板 ens33 mac 地址是  ether 00:0c:29:de:fa:fe
+```
+[root@vm-centos7-64-k8s-worker-01 ~]# ifconfig -a
+docker0: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 169.254.123.1  netmask 255.255.255.0  broadcast 169.254.123.255
+        ether 02:42:73:eb:07:94  txqueuelen 0  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+ens33: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.126.140  netmask 255.255.255.0  broadcast 192.168.126.255
+        inet6 fe80::ec2d:6078:8dab:dbb0  prefixlen 64  scopeid 0x20<link>
+        ether 00:0c:29:de:fa:fe  txqueuelen 1000  (Ethernet)
+        RX packets 18521  bytes 18301519 (17.4 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 10157  bytes 733213 (716.0 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 40  bytes 3184 (3.1 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 40  bytes 3184 (3.1 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+```
+ens33 网络接口 mac 地址变更需在 vmware 控制层面修改，可自动生成面板，参考 https://blog.csdn.net/gaixicui0411/article/details/78672787
+```
+# 修改后 mac 地址 00:50:56:2f:9c:b0 
+[root@vm-centos7-64-k8s-worker-01 ~]# ifconfig
+docker0: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 169.254.123.1  netmask 255.255.255.0  broadcast 169.254.123.255
+        ether 02:42:15:2c:d7:28  txqueuelen 0  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+ens33: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.126.140  netmask 255.255.255.0  broadcast 192.168.126.255
+        inet6 fe80::ec2d:6078:8dab:dbb0  prefixlen 64  scopeid 0x20<link>
+        ether 00:50:56:2f:9c:b0  txqueuelen 1000  (Ethernet)
+        RX packets 84  bytes 10036 (9.8 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 100  bytes 11171 (10.9 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+```
+#### product_uuid 修改
+设备 uuid 查看
+```
+# 网络接口 UUID
+[root@vm-centos7-64-k8s-worker-01 ~]# cat /etc/sysconfig/network-scripts/ifcfg-ens33|grep UUID
+UUID=3a8680f5-911c-4f52-80f2-9870ad1c7d4f
+
+# 设备 UUID
+[root@vm-centos7-64-k8s-worker-01 ~]# sudo cat /sys/class/dmi/id/product_uuid
+564D8FED-753F-FB04-72C7-BB153DDEFAFE
+```
+vmware product_uuid 修改
+https://docs.vmware.com/cn/VMware-Workstation-Pro/16.0/com.vmware.ws.using.doc/GUID-C9B72CBC-662A-4330-9305-87070917D5F8.html
+```
+# 修改 vm *.vmx uuid.bios 中值后重启
+uuid.bios = "56 4d 8f ed 75 3f fb 04-72 c7 bb 15 3d de fa fe"
+uuid.location = "56 4d 8f ed 75 3f fb 04-72 c7 bb 15 3d de fa fe"
+```
+变更后的 product_uuid
+```
+[root@vm-centos7-64-k8s-worker-01 ~]# sudo cat /sys/class/dmi/id/product_uuid
+564D8FED-753F-FB04-72C7-BB153DDEFAFF
+```
+
