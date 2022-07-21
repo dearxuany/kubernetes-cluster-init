@@ -487,6 +487,7 @@ https://kubernetes.io/zh-cn/docs/setup/production-environment/tools/kubeadm/crea
 kubeadm 使用及参数解析
 https://kubernetes.io/zh-cn/docs/reference/setup-tools/kubeadm/kubeadm-init/
 
+##### master 节点初始化
 kubeadm 可使用命令或者配置文件形式注入参数初始化启动 k8s 节点，此处先使用命令
 ````
 kubeadm init \
@@ -671,3 +672,301 @@ Jul 21 16:00:26 vm-centos7-64-k8s-master-01 kubelet[24571]: I0721 16:00:26.40759
 Hint: Some lines were ellipsized, use -l to show in full.
 
 ```
+查看 k8s 集群状态
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get cs --kubeconfig /etc/kubernetes/admin.conf
+Warning: v1 ComponentStatus is deprecated in v1.19+
+NAME                 STATUS    MESSAGE                         ERROR
+controller-manager   Healthy   ok                              
+etcd-0               Healthy   {"health":"true","reason":""}   
+scheduler            Healthy   ok    
+```
+修改 kube-proxy configmap 启用 ipvs 模式
+```
+# 默认 kube-proxy 配置，此处 mode: "" 默认使用 iptable
+# kubectl get configmap kube-proxy -o yaml -n kube-system --kubeconfig /etc/kubernetes/admin.conf
+apiVersion: v1
+data:
+  config.conf: |-
+    apiVersion: kubeproxy.config.k8s.io/v1alpha1
+    bindAddress: 0.0.0.0
+    bindAddressHardFail: false
+    clientConnection:
+      acceptContentTypes: ""
+      burst: 0
+      contentType: ""
+      kubeconfig: /var/lib/kube-proxy/kubeconfig.conf
+      qps: 0
+    clusterCIDR: 10.244.0.0/16
+    configSyncPeriod: 0s
+    conntrack:
+      maxPerCore: null
+      min: null
+      tcpCloseWaitTimeout: null
+      tcpEstablishedTimeout: null
+    detectLocalMode: ""
+    enableProfiling: false
+    healthzBindAddress: ""
+    hostnameOverride: ""
+    iptables:
+      masqueradeAll: false
+      masqueradeBit: null
+      minSyncPeriod: 0s
+      syncPeriod: 0s
+    ipvs:
+      excludeCIDRs: null
+      minSyncPeriod: 0s
+      scheduler: ""
+      strictARP: false
+      syncPeriod: 0s
+      tcpFinTimeout: 0s
+      tcpTimeout: 0s
+      udpTimeout: 0s
+    kind: KubeProxyConfiguration
+    metricsBindAddress: ""
+    mode: ""
+    nodePortAddresses: null
+    oomScoreAdj: null
+    portRange: ""
+    showHiddenMetricsForVersion: ""
+    udpIdleTimeout: 0s
+    winkernel:
+      enableDSR: false
+      networkName: ""
+      sourceVip: ""
+  kubeconfig.conf: |-
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - cluster:
+        certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        server: https://192.168.126.137:6443
+      name: default
+    contexts:
+    - context:
+        cluster: default
+        namespace: default
+        user: default
+      name: default
+    current-context: default
+    users:
+    - name: default
+      user:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+kind: ConfigMap
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/component-config.hash: sha256:336d1586d6c1bec408739fd23aa669e69a34bd094a45f3730d3ca9a86fe3a27d
+  creationTimestamp: "2022-07-21T07:50:40Z"
+  labels:
+    app: kube-proxy
+  name: kube-proxy
+  namespace: kube-system
+  resourceVersion: "241"
+  uid: c9825bcc-39cf-4e02-ac84-c4a7a24a9322
+```
+修改 mode: ipvs 启用 kube-proxy 的 ipvs 模式
+```
+# kubectl edit configmap kube-proxy -n kube-system --kubeconfig /etc/kubernetes/admin.conf
+configmap/kube-proxy edited
+
+# kubectl get configmap kube-proxy -o yaml -n kube-system --kubeconfig /etc/kubernetes/admin.conf|grep mode
+    mode: ipvs
+
+```
+
+##### CNI 网络插件部署
+CNI Container Network Interface，即容器网络的 API 接口，k8s 中标准的一个调用网络实现的接口。
+
+CNI 作用主要是在创建容器时分配网络资源，和在销毁容器时删除网络资源，即给 pod 分配独立的 IP并实现相互通信。
+
+Kubelet 通过这个标准的 API 来调用不同的网络插件以实现不同的网络配置方式，常见的 CNI 插件包括 Calico、flannel、Terway、Weave Net 以及 Contiv。
+
+https://kubernetes.io/zh-cn/docs/concepts/cluster-administration/networking/
+
+此处使用 flannel 作为 CNI 网络插件，flannel 基于 L3 网络层及覆盖网络(overlay network)设计，不支持 network policy。 
+https://github.com/flannel-io/flannel#flannel
+
+k8s 集群安装 flannel 插件
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml --kubeconfig /etc/kubernetes/admin.conf
+namespace/kube-flannel created
+clusterrole.rbac.authorization.k8s.io/flannel created
+clusterrolebinding.rbac.authorization.k8s.io/flannel created
+serviceaccount/flannel created
+configmap/kube-flannel-cfg created
+daemonset.apps/kube-flannel-ds created
+```
+该 yaml 会创建 flannel 独立的命名空间 kube-flannel，flannel 资源类型为 daemonset，即一个 k8s 节点一个
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get all -A --kubeconfig /etc/kubernetes/admin.conf
+NAMESPACE      NAME                                                      READY   STATUS    RESTARTS   AGE
+kube-flannel   pod/kube-flannel-ds-nqt7k                                 1/1     Running   0          82s
+kube-system    pod/coredns-6d8c4cb4d-mmlqb                               0/1     Pending   0          78m
+kube-system    pod/coredns-6d8c4cb4d-r6g6z                               0/1     Pending   0          78m
+kube-system    pod/etcd-vm-centos7-64-k8s-master-01                      1/1     Running   0          78m
+kube-system    pod/kube-apiserver-vm-centos7-64-k8s-master-01            1/1     Running   0          78m
+kube-system    pod/kube-controller-manager-vm-centos7-64-k8s-master-01   1/1     Running   0          78m
+kube-system    pod/kube-proxy-fnv9z                                      1/1     Running   0          78m
+kube-system    pod/kube-scheduler-vm-centos7-64-k8s-master-01            1/1     Running   0          78m
+
+NAMESPACE     NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP                  78m
+kube-system   service/kube-dns     ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   78m
+
+NAMESPACE      NAME                             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-flannel   daemonset.apps/kube-flannel-ds   1         1         1       1            1           <none>                   82s
+kube-system    daemonset.apps/kube-proxy        1         1         1       1            1           kubernetes.io/os=linux   78m
+
+NAMESPACE     NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+kube-system   deployment.apps/coredns   0/2     2            0           78m
+
+NAMESPACE     NAME                                DESIRED   CURRENT   READY   AGE
+kube-system   replicaset.apps/coredns-6d8c4cb4d   2         2         0       78m
+
+```
+
+##### worker 节点添加
+worker 节点上执行 kubeadm join 添加节点到集群中
+```
+[root@vm-centos7-64-k8s-worker-01 ~]# kubeadm join 192.168.126.137:6443 --token mm82pb.stvxhld7s8o49nuu \
+> --discovery-token-ca-cert-hash sha256:8075d0258bbd9eb3f19fa04fdaafe29f9ee0970464b6220bd3afbcb48b222735 
+[preflight] Running pre-flight checks
+	[WARNING Hostname]: hostname "vm-centos7-64-k8s-worker-01" could not be reached
+	[WARNING Hostname]: hostname "vm-centos7-64-k8s-worker-01": lookup vm-centos7-64-k8s-worker-01 on 8.8.8.8:53: no such host
+[preflight] Reading configuration from the cluster...
+[preflight] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -o yaml'
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet-start] Starting the kubelet
+[kubelet-start] Waiting for the kubelet to perform the TLS Bootstrap...
+
+This node has joined the cluster:
+* Certificate signing request was sent to apiserver and a response was received.
+* The Kubelet was informed of the new secure connection details.
+
+Run 'kubectl get nodes' on the control-plane to see this node join the cluster.
+
+```
+查看集群节点
+```
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get node --kubeconfig /etc/kubernetes/admin.conf
+NAME                          STATUS   ROLES                  AGE    VERSION
+vm-centos7-64-k8s-master-01   Ready    control-plane,master   84m    v1.23.9
+vm-centos7-64-k8s-worker-01   Ready    <none>                 118s   v1.23.9
+
+
+[root@vm-centos7-64-k8s-master-01 docker]# kubectl get node vm-centos7-64-k8s-worker-01 -o yaml --kubeconfig /etc/kubernetes/admin.conf
+apiVersion: v1
+kind: Node
+metadata:
+  annotations:
+    flannel.alpha.coreos.com/backend-data: '{"VNI":1,"VtepMAC":"8e:80:b2:e4:bc:e5"}'
+    flannel.alpha.coreos.com/backend-type: vxlan
+    flannel.alpha.coreos.com/kube-subnet-manager: "true"
+    flannel.alpha.coreos.com/public-ip: 192.168.126.140
+    kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+    node.alpha.kubernetes.io/ttl: "0"
+    volumes.kubernetes.io/controller-managed-attach-detach: "true"
+  creationTimestamp: "2022-07-21T09:13:19Z"
+  labels:
+    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/os: linux
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: vm-centos7-64-k8s-worker-01
+    kubernetes.io/os: linux
+  name: vm-centos7-64-k8s-worker-01
+  resourceVersion: "6687"
+  uid: 98d7c124-14b1-434a-808c-2ca1c52455f2
+spec:
+  podCIDR: 10.244.1.0/24
+  podCIDRs:
+  - 10.244.1.0/24
+status:
+  addresses:
+  - address: 192.168.126.140
+    type: InternalIP
+  - address: vm-centos7-64-k8s-worker-01
+    type: Hostname
+  allocatable:
+    cpu: "2"
+    ephemeral-storage: "16415037823"
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 3768908Ki
+    pods: "110"
+  capacity:
+    cpu: "2"
+    ephemeral-storage: 17394Mi
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 3871308Ki
+    pods: "110"
+  conditions:
+  - lastHeartbeatTime: "2022-07-21T09:14:00Z"
+    lastTransitionTime: "2022-07-21T09:14:00Z"
+    message: Flannel is running on this node
+    reason: FlannelIsUp
+    status: "False"
+    type: NetworkUnavailable
+  - lastHeartbeatTime: "2022-07-21T09:14:01Z"
+    lastTransitionTime: "2022-07-21T09:12:29Z"
+    message: kubelet has sufficient memory available
+    reason: KubeletHasSufficientMemory
+    status: "False"
+    type: MemoryPressure
+  - lastHeartbeatTime: "2022-07-21T09:14:01Z"
+    lastTransitionTime: "2022-07-21T09:12:29Z"
+    message: kubelet has no disk pressure
+    reason: KubeletHasNoDiskPressure
+    status: "False"
+    type: DiskPressure
+  - lastHeartbeatTime: "2022-07-21T09:14:01Z"
+    lastTransitionTime: "2022-07-21T09:12:29Z"
+    message: kubelet has sufficient PID available
+    reason: KubeletHasSufficientPID
+    status: "False"
+    type: PIDPressure
+  - lastHeartbeatTime: "2022-07-21T09:14:01Z"
+    lastTransitionTime: "2022-07-21T09:14:01Z"
+    message: kubelet is posting ready status
+    reason: KubeletReady
+    status: "True"
+    type: Ready
+  daemonEndpoints:
+    kubeletEndpoint:
+      Port: 10250
+  images:
+  - names:
+    - registry.aliyuncs.com/google_containers/kube-proxy@sha256:ec165529c811ffe51da4f85fcc76e83ddd8a70716bed464c1aae6d85f9b4915a
+    - registry.aliyuncs.com/google_containers/kube-proxy:v1.23.9
+    sizeBytes: 112315538
+  - names:
+    - rancher/mirrored-flannelcni-flannel@sha256:b55a3b4e3dc62c4a897a2b55f60beb324ad94ee05fc6974493408ebc48d9bd77
+    - rancher/mirrored-flannelcni-flannel:v0.19.0
+    sizeBytes: 62278921
+  - names:
+    - rancher/mirrored-flannelcni-flannel-cni-plugin@sha256:28d3a6be9f450282bf42e4dad143d41da23e3d91f66f19c01ee7fd21fd17cb2b
+    - rancher/mirrored-flannelcni-flannel-cni-plugin:v1.1.0
+    sizeBytes: 8087907
+  - names:
+    - registry.aliyuncs.com/google_containers/pause@sha256:3d380ca8864549e74af4b29c10f9cb0956236dfb01c40ca076fb6c37253234db
+    - registry.aliyuncs.com/google_containers/pause:3.6
+    sizeBytes: 682696
+  nodeInfo:
+    architecture: amd64
+    bootID: 6bd925d4-cb47-4fc9-a4d6-7c44980526b8
+    containerRuntimeVersion: docker://19.3.5
+    kernelVersion: 3.10.0-957.el7.x86_64
+    kubeProxyVersion: v1.23.9
+    kubeletVersion: v1.23.9
+    machineID: 3de7ed13196a4b22b3de5f9a79a03ed4
+    operatingSystem: linux
+    osImage: CentOS Linux 7 (Core)
+    systemUUID: 564D8FED-753F-FB04-72C7-BB153DDEFAFF
+
+```
+
+
+
+
