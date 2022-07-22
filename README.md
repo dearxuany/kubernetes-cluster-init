@@ -522,8 +522,8 @@ kubeadm init \
 
 - 节点网卡支持 IP 数量，对于阿里云来说，每个 ECS 对应网卡支持的 IP 数量是有限制的，故限制了每个节点可支持的 pod 数量
 - 节点磁盘容量和介质，主要是镜像存储大小和位置，涉及 docker 的 /var/lib/docker，如果分配太少的话会成为瓶颈
-- k8s 集群网段规划必须在集群建立时就做好，集群建立后若网段 IP 不足则无法扩容,则会限制 k8s 集群可支持 pod 数量及可容纳节点数，必须重新新建集群
-- flanel 使用默认网段容易造成 IP 浪费，需注意调整，k8s 网段划分分析见 [ kubernetes 集群网络规划及 CNI 插件对比 ](docs/kubernetes-cluster-CNI-network.md)
+- k8s 集群网段规划必须在集群建立时就做好，集群建立后若网段 IP 不足则无法扩容，则会限制 k8s 集群可支持 pod 数量及可容纳节点数，必须重新新建集群
+- flannel 使用默认网段容易造成 IP 浪费，需注意调整，k8s 网段划分分析见 [ kubernetes 集群网络规划及 CNI 插件对比 ](docs/kubernetes-cluster-CNI-network.md)
 
 kubeadm 执行结果
 ```
