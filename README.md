@@ -522,8 +522,7 @@ kubeadm init \
 
 - 节点网卡支持 IP 数量，对于阿里云来说，每个 ECS 对应网卡支持的 IP 数量是有限制的，故限制了每个节点可支持的 pod 数量
 - 节点磁盘容量和介质，主要是镜像存储大小和位置，涉及 docker 的 /var/lib/docker，如果分配太少的话会成为瓶颈
-- k8s 集群网段规划必须在集群建立时就做好，集群建立后若网段 IP 不足则无法扩容，必须重新新建集群
-- 
+- k8s 集群网段规划必须在集群建立时就做好，集群建立后若网段 IP 不足则无法扩容,则会限制 k8s 集群可支持 pod 数量及可容纳节点数，必须重新新建集群
 
 
 kubeadm 执行结果
@@ -1333,5 +1332,22 @@ vm-centos7-64-k8s-worker-01   Ready    <none>                 82m    v1.23.9
 vm-centos7-64-k8s-worker-02   Ready    <none>                 104s   v1.23.9
 
 ```
+关于 master 和 worker 下线顺序的问题，如果 master 被关 worker 正常运行后被关，那么 etcd 对 worker 状态的存储会是 worker 被关前的 ready 状态。
+需要注意节点下线顺序，生产一般使用 HA 集群，滚动更新。
+```
+# master 开机
+[root@vm-centos7-64-k8s-master-01 ~]#  kubectl get node --kubeconfig /etc/kubernetes/admin.conf
+NAME                          STATUS   ROLES                  AGE   VERSION
+vm-centos7-64-k8s-master-01   Ready    control-plane,master   18h   v1.23.9
+vm-centos7-64-k8s-worker-01   Ready    <none>                 17h   v1.23.9
+vm-centos7-64-k8s-worker-02   Ready    <none>                 15h   v1.23.9
 
+# 过一段时间才识别到 worker 联系不上
+[root@vm-centos7-64-k8s-master-01 ~]#  kubectl get node --kubeconfig /etc/kubernetes/admin.conf
+NAME                          STATUS     ROLES                  AGE   VERSION
+vm-centos7-64-k8s-master-01   Ready      control-plane,master   18h   v1.23.9
+vm-centos7-64-k8s-worker-01   NotReady   <none>                 17h   v1.23.9
+vm-centos7-64-k8s-worker-02   NotReady   <none>                 15h   v1.23.9
+
+```
 
