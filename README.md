@@ -65,8 +65,8 @@ https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-ku
 |vm-centos7-64-k8s-master-01| 192.168.126.137 | 2   | 4GB | 20GB | centos7 64 |   |   |
 |vm-centos7-64-k8s-master-02| 192.168.126.138 |     |     |      | centos7 64 |   |   |
 |vm-centos7-64-k8s-master-03| 192.168.126.139 |     |     |      | centos7 64 |   |   |
-|vm-centos7-64-k8s-worker-01| 192.168.126.140 |     |     |      |            |   |   |
-|vm-centos7-64-k8s-worker-02| 192.168.126.141 |     |     |      |            |   |   |
+|vm-centos7-64-k8s-worker-01| 192.168.126.140 | 2   | 4GB | 20GB | centos7 64 |   |   |
+|vm-centos7-64-k8s-worker-02| 192.168.126.141 | 2   | 4GB | 20GB | centos7 64 |   |   |
 
 组件版本
 
