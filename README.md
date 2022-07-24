@@ -45,10 +45,14 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
 - CRI
   - docker (k8s 1.24 后不支持)
 - CNI
-  - flannel
-  - calico
-  - canal
-  - terway
+  - 组成
+    - NetPlugin 管理网络
+    - IPAM      IP 分配
+  - 常见
+    - flannel
+    - calico
+    - canal
+    - terway
 - CSI
   - ceph
   - glusterfs
