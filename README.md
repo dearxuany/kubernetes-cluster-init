@@ -47,6 +47,8 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
 - CNI
   - 组成
     - NetPlugin 管理网络
+      - overlay
+      - underlay
     - IPAM      IP 分配
   - 常见
     - flannel
