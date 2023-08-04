@@ -4,10 +4,15 @@
 - 调试
   - minikube
   - kind
-- 集群
+- 生产部署
   - kubeadm
   - rancher rke
-  - 云平台 ACK 托管集群
+  - 云平台托管集群
+- 分发版
+  - 原生 kubernetes
+  - rancher rke
+  - redhat openshift
+  - 云厂商分发版
 
 ### 组件
 https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
@@ -28,7 +33,9 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
      - iptables
      - ipvs
   - container runtime
-     - docker
+     - docker（已在 v1.24 弃用）
+     - containerd
+     - CRI-O
 
 #### 常用组件
 - cloud-controller-manager
@@ -44,6 +51,8 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
 ### 接口
 - CRI
   - docker (k8s 1.24 后不支持)
+  - containerd
+  - CRI-O
 - CNI
   - 组成
     - NetPlugin 管理网络
@@ -54,7 +63,8 @@ https://kubernetes.io/zh-cn/docs/concepts/overview/components/#container-runtime
     - flannel
     - calico
     - canal
-    - terway
+    - terway（阿里云自研）
+    - OVN-Kubernetes (openshift)
 - CSI
   - ceph
   - glusterfs
